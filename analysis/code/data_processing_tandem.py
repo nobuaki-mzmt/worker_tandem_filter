@@ -79,6 +79,12 @@ def data_filter(in_dir, caste,
        if n_inds == 4:
            check_list, skip_num = [0,2], 1
            cx, cy = [350, 1020, 350, 1020], [350, 350, 1020, 1020]
+       # some exceptions
+       if video == "Ret_ama_FW_G_1-6.mp4.predictions":
+          # three individuals escaped and contamintaed in one well. we use only well 1 and 4 (0,3)
+          limit, check_list, skip_num = 2, None, None
+          cx = [350, 350]
+          cy = [350, 1020]
     
     # body parts of interst
     mapping = {
@@ -104,9 +110,9 @@ def data_filter(in_dir, caste,
           if x_means[i_ind] > x_means[i_ind + skip_num]:
             print("swap detect " + str(i_ind) + " and " + str(i_ind + skip_num))
             temp = locations[:, :, :, i_ind].copy()
-            locations[:, :, :, i_ind] = locations[:, :, :, i_ind+2]
+            locations[:, :, :, i_ind] = locations[:, :, :, i_ind+skip_num]
             locations[:, :, :, i_ind+skip_num] = temp
-            x_means[i_ind], x_means[i_ind+skip_num] = x_means[i_ind+2], x_means[i_ind]
+            x_means[i_ind], x_means[i_ind+skip_num] = x_means[i_ind+skip_num], x_means[i_ind]
     
     # fix jump
     for i in range(n_inds):
@@ -146,7 +152,7 @@ def data_filter(in_dir, caste,
 #------------------------------------------------------------------------------#
 
 #------------------------------------------------------------------------------#
-def main_data_filter(overwrite=True):
+def main_data_filter(overwrite=False):
     place = "analysis/data_raw/trajectory/*"
     out_dir = "analysis/data_fmt/trajectory/"
     data_place_caste = glob.glob(place)
