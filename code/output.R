@@ -108,7 +108,7 @@
     
     df_out <- plot_tandem_prop_time(df_dish, time_bin = 60)
     df_tandem_prop_dish = df_out[[1]]
-    ggsave(df_out[[2]], filename = "output/tandem_prop_well.pdf", 
+    ggsave(df_out[[2]], filename = "output/tandem_prop_dish.pdf", 
            device = cairo_pdf, family = "Arial",
            width = 3, height = 3)
     
@@ -137,6 +137,7 @@
       
       saveWorkbook(wb, "output/tandem_prop_well_lmer.xlsx", overwrite = TRUE)
     }
+    
     # dish
     {
       df_tandem_prop_dish |> filter(tandem_prop > 0, tandem_prop < 1) |> pull(tandem_prop) |> range()
@@ -159,13 +160,13 @@
       writeData(wb, "slopes_P",    as.data.frame(slope_tests ))
       writeData(wb, "contrasts", as.data.frame(pairwise_res$contrasts))
       
-      saveWorkbook(wb, "output/tandem_prop_well_lmer.xlsx", overwrite = TRUE)
+      saveWorkbook(wb, "output/tandem_prop_dish_lmer.xlsx", overwrite = TRUE)
     }
   }
   
 }
 
-# tandem duration ----
+# tandem event ----
 {
   # create tandem event data
   tandem_df <- function(df,
@@ -211,395 +212,366 @@
   }
   
   # dish analysis
-  df_tandem <- tandem_df(df_dish, gap_max = 1, min_len = 1)
-  
-  df_first_tandem <- df_tandem |> group_by(pair_id) |>
-    slice_min(start_time, n = 1, with_ties = TRUE) |>
-    ungroup()
-  
-  ggplot(df_first_tandem, aes(x = treat, y = start_time)) +
-    geom_boxplot() +
-    geom_jitter()
-    
-  ggplot(df_first_tandem, aes(x = treat, y = duration)) +
-    geom_boxplot() +
-    geom_jitter()
-  
-  ggsurvplot(
-    survfit(Surv(duration, cens) ~ treat, data = df_first_tandem),
-    data = df_first_tandem,
-    censor = FALSE,
-    conf.int.style = "ribbon",
-    conf.int.fill = TRUE,
-    ggtheme = theme_classic(),
-    color = "treat"
-  )$plot + 
-    scale_x_continuous(trans = "pseudo_log", breaks = c(0, 1, 10, 100, 1000))+
-    scale_color_manual(values = c("#0072B2", "#D55E00", "#009E73", "#CC79A7"), labels = treat_labels)  +
-    scale_fill_manual(values = c("#0072B2", "#D55E00", "#009E73", "#CC79A7"), labels = treat_labels) +
-    scale_y_continuous(breaks = c(0,1))+
-    labs(x = "Duration (sec)", y = "Tandem probability") +
-    theme(aspect.ratio = 3/4,
-          legend.title = element_blank(),
-          legend.position = c(0.8,0.8))
-  
-  
-  df_non_first_tandem <- df_tandem |>
-    group_by(pair_id) |>
-    filter(start_time != min(start_time)) |>
-    ungroup()
-  
-  ggsurvplot(
-    survfit(Surv(duration, cens) ~ treat, data = df_non_first_tandem),
-    data = df_longest_tandem,
-    censor = TRUE,
-    conf.int.style = "ribbon",
-    conf.int.fill = TRUE,
-    ggtheme = theme_classic(),
-    color = "treat"
-  )$plot + 
-    scale_x_continuous(trans = "pseudo_log", breaks = c(0, 1, 10, 100, 1000))+
-    scale_color_manual(values = c("#0072B2", "#D55E00", "#009E73", "#CC79A7"), labels = treat_labels)  +
-    scale_fill_manual(values = c("#0072B2", "#D55E00", "#009E73", "#CC79A7"), labels = treat_labels) +
-    scale_y_continuous(breaks = c(0,1))+
-    labs(x = "Duration (sec)", y = "Tandem probability") +
-    theme(aspect.ratio = 3/4,
-          legend.title = element_blank(),
-          legend.position = c(0.8,0.8))
-  
-  df_combined <- bind_rows(
-    "non_first" = df_non_first_tandem,
-    "first"   = df_first_tandem,
-    .id = "tandem_type"
-  )
-  
-  ggsurvplot(
-    survfit(Surv(duration, cens) ~ tandem_type + treat, data = df_combined),
-    data = df_combined,
-    censor = T,
-    conf.int.style = "ribbon",
-    conf.int.fill = TRUE,
-    ggtheme = theme_classic()
-  )$plot + 
-    scale_x_continuous(trans = "pseudo_log", breaks = c(0, 1, 10, 100, 1000))+
-    scale_color_manual(values = c("#0072B2", "#D55E00", "#009E73", "#CC79A7"), labels = treat_labels)  +
-    scale_fill_manual(values = c("#0072B2", "#D55E00", "#009E73", "#CC79A7"), labels = treat_labels) +
-    scale_y_continuous(breaks = c(0,1))+
-    labs(x = "Duration (sec)", y = "Tandem probability") +
-    theme(aspect.ratio = 3/4,
-          legend.title = element_blank(),
-          legend.position = c(0.8,0.8))
-  
-  df_combined$treat <- as.factor(df_combined$treat)
-  fit_cox <- coxme(Surv(duration, cens) ~ tandem_type + (1|pair_id), 
-                   data = df_combined |> filter(treat == "FM"))
-  Anova(fit_cox)
-  
-  fit_cox <- coxme(Surv(duration, cens) ~ tandem_type + (1|pair_id), 
-                   data = df_combined |> filter(treat == "MM"))
-  Anova(fit_cox)
-  
-  
-  
-  df_longest_tandem <- df_tandem |> group_by(pair_id) |>
-    slice_max(duration, n = 1, with_ties = TRUE) |>
-    ungroup()
-  
-  ggplot(df_longest_tandem, aes(x = treat, y = start_time)) +
-    geom_boxplot() +
-    geom_jitter()
-  
-  ggplot(df_longest_tandem, aes(x = treat, y = tandem_event)) +
-    geom_boxplot() +
-    geom_jitter()
-  
-  
-  ggplot(df_longest_tandem, aes(x = duration, fill = treat)) +
-    geom_density(alpha = 0.25)+
-    scale_x_log10(
-      breaks = c(1, 10, 100, 1000),
-      labels = scales::label_number()
-    ) 
-  
-  ggplot(df_longest_tandem, aes(x = duration, color = treat)) +
-    stat_ecdf(linewidth = 0.8) +
-    scale_color_viridis_d(end = 0.8) +
-    labs(x = "Duration (s)", y = "Cumulative proportion",
-         color = "Treatment") +
-    theme_classic() +
-    theme(aspect.ratio = 1, legend.position = c(0.8, 0.3))+scale_x_log10(
-      breaks = c(1, 10, 100, 1000),
-      labels = scales::label_number()
-    ) 
-  
-  
-  ggplot(df_longest_tandem, aes(x = duration, y = treat, fill = treat, color = treat)) +
-    stat_halfeye( width = 0.4, position = position_nudge(y = 0.11),
-                  .width = 0, point_colour = NA, alpha = 0.7, scale = 0.5) +
-    stat_dots( side = "bottom", dotsize = 0.75, binwidth = 0.08,
-      alpha = 0.6, position = position_nudge(y = -0.1) ) +
-    geom_boxplot( width = 0.06, outlier.shape = NA,
-                  fill = "white", alpha = 0.6, color = "grey30", linewidth = 0.4 ) +
-    scale_x_log10( breaks = c(1, 10, 100, 1000), labels = scales::label_number()) +
-    coord_cartesian(ylim = c(1,  2.2)) +
-    scale_fill_viridis_d(end = 0.8) +
-    scale_color_viridis_d(end = 0.8) +
-    labs(x = "Longest tandem duration (s)", y = NULL) +
-    theme_classic(base_size = 10) +
-    theme(aspect.ratio = 1.25, legend.position = "none")
-  
-  # OVL from KDE
-  d1 <- density(log10(df_longest_tandem$duration[df_longest_tandem$treat == "FM"]))
-  d2 <- density(log10(df_longest_tandem$duration[df_longest_tandem$treat == "MM"]))
-  # Interpolate to common grid
-  x_grid <- seq(min(d1$x, d2$x), max(d1$x, d2$x), length.out = 1000)
-  f1 <- approx(d1$x, d1$y, x_grid)$y
-  f2 <- approx(d2$x, d2$y, x_grid)$y
-  ovl <- sum(pmin(f1, f2, na.rm = TRUE)) / sum(pmax(f1, f2, na.rm = TRUE))
-  
-  
-  
-  library(effsize)   # cliff.delta()
-  
-  cd <- cliff.delta(duration ~ treat, data = df_longest_tandem)
-  
-  ggsurvplot(
-    survfit(Surv(duration, cens) ~ treat, data = df_longest_tandem),
-    data = df_longest_tandem,
-    censor = T,
-    conf.int.style = "ribbon",
-    conf.int.fill = TRUE,
-    ggtheme = theme_classic()
-  )$plot + 
-    scale_x_continuous(trans = "pseudo_log", breaks = c(0, 1, 10, 100, 1000))+
-    scale_color_manual(values = c("#0072B2", "#D55E00", "#009E73", "#CC79A7"), labels = treat_labels)  +
-    scale_fill_manual(values = c("#0072B2", "#D55E00", "#009E73", "#CC79A7"), labels = treat_labels) +
-    scale_y_continuous(breaks = c(0,1))+
-    labs(x = "Duration (sec)", y = "Tandem probability") +
-    theme(aspect.ratio = 3/4,
-          legend.title = element_blank(),
-          legend.position = c(0.8,0.8))
-  
-  
-  
-  df_combined <- bind_rows(
-    "longest" = df_longest_tandem,
-    "first"   = df_first_tandem,
-    .id = "tandem_type"
-  )
-  
-  ggsurvplot(
-    survfit(Surv(duration, cens) ~ treat + tandem_type, data = df_combined),
-    data = df_combined,
-    censor = T,
-    conf.int.style = "ribbon",
-    conf.int.fill = TRUE,
-    ggtheme = theme_classic()
-  )$plot + 
-    scale_x_continuous(trans = "pseudo_log", breaks = c(0, 1, 10, 100, 1000))+
-    scale_color_manual(values = c("#0072B2", "#D55E00", "#009E73", "#CC79A7"), labels = treat_labels)  +
-    scale_fill_manual(values = c("#0072B2", "#D55E00", "#009E73", "#CC79A7"), labels = treat_labels) +
-    scale_y_continuous(breaks = c(0,1))+
-    labs(x = "Duration (sec)", y = "Tandem probability") +
-    theme(aspect.ratio = 3/4,
-          legend.title = element_blank(),
-          legend.position = c(0.8,0.8))
-  
-  
-  posthoc <- summary(glht(fit_cox, linfct = mcp(treat = "Tukey")))
-  
-  
-  # tandem duration
   {
-    ggsurvplot(
-      survfit(Surv(duration, cens) ~ treat, data = df_tandem),
-      data = df_plot,
-      censor = FALSE,
-      conf.int.style = "ribbon",
-      conf.int.fill = TRUE,
-      ggtheme = theme_classic(),
-      color = "treat"
-    )$plot + 
-      scale_x_continuous(trans = "pseudo_log", breaks = c(0, 1, 10, 100, 1000))+
-      scale_color_manual(values = c("#0072B2", "#D55E00", "#009E73", "#CC79A7"), labels = treat_labels)  +
-      scale_fill_manual(values = c("#0072B2", "#D55E00", "#009E73", "#CC79A7"), labels = treat_labels) +
-      scale_y_continuous(breaks = c(0,1))+
-      labs(x = "Duration (sec)", y = "Tandem probability") +
-      theme(aspect.ratio = 3/4,
-            legend.title = element_blank(),
-            legend.position = c(0.8,0.8))
+    df_tandem <- tandem_df(df_dish, gap_max = 1, min_len = 1)
     
-    ggsave( filename = "output/tandem_duration.pdf", 
-            device = cairo_pdf, family = "Arial",
-            width = 4, height = 3)
+    wb <- createWorkbook()
+    addWorksheet(wb, "short_tandem_anova")
+    addWorksheet(wb, "short_tandem_coeff")
+    addWorksheet(wb, "longest_tandem_time_anova")
+    addWorksheet(wb, "longest_tandem_time_coeff")
+    addWorksheet(wb, "longest_tandem_time_cox.zph")
+    addWorksheet(wb, "longest_tandem_event_anova")
+    addWorksheet(wb, "longest_tandem_event_coeff")
+    addWorksheet(wb, "longest_tandem_duration_anova")
+    addWorksheet(wb, "longest_tandem_duration_coeff")
+    addWorksheet(wb, "longest_tandem_duration_cox.zph")
+    addWorksheet(wb, "overlap")
+    
+    # distribution of tandem duration
+    ggplot(df_tandem, aes(x = duration, fill = treat)) +
+      geom_histogram(bins = 80, alpha = 0.5) +
+      scale_fill_manual(values = treat_colors) +
+      scale_x_log10() +
+      geom_vline(xintercept = c(1.5), linetype = "dashed") +
+      facet_wrap(~treat, labeller = as_labeller(treat_labels)) +
+      theme_bw(base_size = 10) +
+      labs(x = "Tandem duration (sec)", y = "Count") +
+      theme(aspect.ratio = 2/3,
+            legend.position = "none",
+            panel.grid = element_blank(),
+            strip.background = element_blank())  
+    ggsave(filename = "output/tandem_duration_hist_dish.pdf", 
+          device = cairo_pdf, family = "Arial",
+          width = 5, height = 3)
+    
+    # short tandem events (< 1.6 sec = 8 frames) are different events
+    df_tandem <- df_tandem |>
+      mutate(tandem_type = if_else(duration < 1.5, "short", "long"),
+             start_time_min = start_time/60)
+    
+    # short tandem events happen a lot at the beginning in MM, but not in FM
+    # use min to avoid convergence error
+    fit <- glmer(tandem_type == "short" ~ treat * start_time_min + (1|pair_id),
+                 family = binomial, data = df_tandem)
+    df_res <- tibble(tidy(Anova(fit)), formula = deparse(formula(fit) ))
+    res <- summary(fit)
+    
+    writeData(wb, "short_tandem_anova", df_res)
+    writeData(wb, "short_tandem_coeff", res$coefficients |> round(3))
+    
+    # only focus on long tandem events
+    # df_tandem_long <- df_tandem |> filter(tandem_type == "long")
+    # I decided remove this analysis
+    # fit_cox <- coxme(Surv(duration, cens) ~ start_time * treat + (1|pair_id), data = df_tandem_long)
+    # as duration and start_time have to be correlated in design for sampling patterns, even with cens
+    
+    # longest tandem
+    df_longest_tandem <- df_tandem |> group_by(pair_id) |>
+      slice_max(duration, n = 1, with_ties = TRUE) |>
+      ungroup()
+    
+    # longest tandem start later in MM (in sec)
+    ggplot(df_longest_tandem, aes(x = treat, y = start_time, col = treat, fill = treat)) +
+      geom_boxplot(width = 0.1, outliers = F, alpha = 0.1) +
+      geom_jitter(width = 0.1) +
+      scale_color_manual(values = treat_colors, labels = treat_labels)+
+      scale_fill_manual(values = treat_colors, labels = treat_labels)  +
+      scale_x_discrete(labels = treat_labels)+
+      theme_classic(base_size = 9) +
+      labs(x = "", y = "Start time of the logest tandem running (sec)")+
+      theme(aspect.ratio = 1,
+            legend.position = "none")
+    
+    ggsave(filename = "output/longest_tandem_start_sec_dish.pdf", 
+           device = cairo_pdf, family = "Arial",
+           width = 3, height = 3)
+    
+    fit_cox <- coxph(Surv(start_time) ~ treat, data = df_longest_tandem)
+    df_res <- tibble(tidy(Anova(fit_cox)), formula = deparse(formula(fit_cox) ))
+    res <- summary(fit_cox)
+    res$coefficients
+    
+    writeData(wb, "longest_tandem_time_anova", df_res)
+    writeData(wb, "longest_tandem_time_coeff", res$coefficients |> round(3))
+    writeData(wb, "longest_tandem_time_cox.zph", cox.zph(fit_cox))
+    
+    # longest tandem start later in MM (in event number)
+    ggplot(df_longest_tandem, aes(x = treat, y = tandem_event, col = treat, fill = treat)) +
+      geom_boxplot(width = 0.1, outliers = F, alpha = 0.1) +
+      geom_jitter(width = 0.1) +
+      scale_color_manual(values = treat_colors, labels = treat_labels)+
+      scale_fill_manual(values = treat_colors, labels = treat_labels)  +
+      scale_x_discrete(labels = treat_labels)+
+      scale_y_continuous(breaks = c(0,50,100))+
+      theme_classic(base_size = 9) +
+      labs(x = "", y = "The logest tandem running event")+
+      theme(aspect.ratio = 1,
+            legend.position = "none")
+    
+    ggsave(filename = "output/longest_tandem_start_event_dish.pdf", 
+           device = cairo_pdf, family = "Arial",
+           width = 3, height = 3)
+    
+    r <- glm.nb(tandem_event ~ treat,  data = df_longest_tandem)
+    df_res <- tibble(tidy(Anova(r)), formula = deparse(formula(r) ))
+    res <- summary(r)
+    res$coefficients
+    
+    writeData(wb, "longest_tandem_event_anova", df_res)
+    writeData(wb, "longest_tandem_event_coeff", res$coefficients |> round(3))
+
+    # overlap of the distribution
+    ggplot(df_longest_tandem, aes(x = duration, y = treat, fill = treat, color = treat)) +
+      stat_halfeye( width = 0.4, position = position_nudge(y = 0.11),
+                    .width = 0, point_colour = NA, alpha = 0.7, scale = 0.5) +
+      stat_dots( side = "bottom", dotsize = 0.75, binwidth = 0.08,
+                 alpha = 0.6, position = position_nudge(y = -0.1) ) +
+      geom_boxplot( width = 0.06, outlier.shape = NA,
+                    fill = "white", alpha = 0.6, color = "grey30", linewidth = 0.4 ) +
+      scale_x_log10( breaks = c(1, 10, 100, 1000), labels = scales::label_number()) +
+      scale_y_discrete(labels = treat_labels)+ 
+      coord_cartesian(ylim = c(1,  2.2)) +
+      scale_color_manual(values = treat_colors, labels = treat_labels)+
+      scale_fill_manual(values = treat_colors, labels = treat_labels)  +
+      labs(x = "Longest tandem duration (s)", y = NULL) +
+      theme_classic(base_size = 10) +
+      theme(aspect.ratio = 1.25, legend.position = "none")
+    
+    ggsave(filename = "output/longest_tandem_duration_dish.pdf", 
+           device = cairo_pdf, family = "Arial",
+           width = 3, height = 3)
+    
+    fit_cox <- coxph(Surv(duration, cens) ~ treat, data = df_longest_tandem)
+    df_res <- tibble(tidy(Anova(fit_cox)), formula = deparse(formula(fit_cox) ))
+    res <- summary(fit_cox)
+    res$coefficients
+    
+    writeData(wb, "longest_tandem_duration_anova", df_res)
+    writeData(wb, "longest_tandem_duration_coeff", res$coefficients |> round(3))
+    writeData(wb, "longest_tandem_duration_cox.zph", cox.zph(fit_cox))
+    
+    
+    # OVL from KDE
+    d1 <- density(log10(df_longest_tandem$duration[df_longest_tandem$treat == "FM"]))
+    d2 <- density(log10(df_longest_tandem$duration[df_longest_tandem$treat == "MM"]))
+    # Interpolate to common grid
+    x_grid <- seq(min(d1$x, d2$x), max(d1$x, d2$x), length.out = 1000)
+    f1 <- approx(d1$x, d1$y, x_grid)$y
+    f2 <- approx(d2$x, d2$y, x_grid)$y
+    ovl <- sum(pmin(f1, f2, na.rm = TRUE)) * diff(x_grid[1:2]) / 
+      (0.5 * (sum(f1, na.rm = TRUE) + sum(f2, na.rm = TRUE)) * diff(x_grid[1:2]))
+    ovl
+    writeData(wb, "overlap", ovl)
+    
+    saveWorkbook(wb, "output/tandem_duration_dish.xlsx", overwrite = TRUE)
+    
   }
   
-  # cumulative hazard plot
+  # well analysis
   {
+    df_tandem <- tandem_df(df_pair, gap_max = 1, min_len = 1)
+    
+    wb <- createWorkbook()
+    addWorksheet(wb, "short_tandem_anova")
+    addWorksheet(wb, "short_tandem_coeff")
+    addWorksheet(wb, "longest_tandem_time_anova")
+    addWorksheet(wb, "longest_tandem_time_coeff")
+    addWorksheet(wb, "longest_tandem_time_cox.zph")
+    addWorksheet(wb, "longest_tandem_event_anova")
+    addWorksheet(wb, "longest_tandem_event_coeff")
+    addWorksheet(wb, "longest_tandem_duration_anova")
+    addWorksheet(wb, "longest_tandem_duration_coeff")
+    addWorksheet(wb, "longest_tandem_duration_cox.zph")
+    addWorksheet(wb, "tandem_duration_anova")
+    addWorksheet(wb, "tandem_duration_coeff")
+    addWorksheet(wb, "tandem_duration_cox.zph")
+    
+    # distribution of tandem duration
+    ggplot(df_tandem, aes(x = duration, fill = treat)) +
+      geom_histogram(bins = 80, alpha = 0.5) +
+      scale_fill_manual(values = treat_colors) +
+      scale_x_log10() +
+      geom_vline(xintercept = c(1.5), linetype = "dashed") +
+      facet_wrap(~treat, labeller = as_labeller(treat_labels)) +
+      theme_bw(base_size = 10) +
+      labs(x = "Tandem duration (sec)", y = "Count") +
+      theme(aspect.ratio = 2/3,
+            legend.position = "none",
+            panel.grid = element_blank(),
+            strip.background = element_blank())  
+    ggsave(filename = "output/tandem_duration_hist_well.pdf", 
+           device = cairo_pdf, family = "Arial",
+           width = 5, height = 3)
+    
+    # short tandem events (< 1.6 sec = 8 frames) are different events
+    df_tandem <- df_tandem |>
+      mutate(tandem_type = if_else(duration < 1.5, "short", "long"),
+             start_time_min = start_time/60)
+    
+    # short tandem events happen a lot at the beginning in MM, but not in FM
+    # use min to avoid convergence error
+    fit <- glmer(tandem_type == "short" ~ treat * start_time_min + (1|pair_id),
+                 family = binomial, data = df_tandem)
+    df_res <- tibble(tidy(Anova(fit)), formula = deparse(formula(fit) ))
+    res <- summary(fit)
+    pairwise_res <- emtrends(fit, pairwise ~ treat, var = "start_time_min")
+    
+    writeData(wb, "short_tandem_anova", df_res)
+    writeData(wb, "short_tandem_coeff", res$coefficients |> round(3))
+    
+    pred_df <- expand.grid(
+      treat = unique(df_tandem$treat),
+      start_time_min = seq(0, max(df_tandem$start_time_min), length.out = 100)
+    )
+    pred_df$prob <- predict(fit, pred_df, re.form = NA, type = "response")
+    
+    ggplot(pred_df, aes(x = start_time_min, y = prob, color = treat)) +
+      geom_line(linewidth = 1) +
+      scale_color_manual(values = treat_colors, labels = treat_labels) +
+      labs(x = "Time (min)", y = "P(short tandem)", color = NULL) +
+      theme_classic(base_size = 10) +
+      theme(aspect.ratio = 1, legend.position = c(0.8, 0.8))
+    
+    # only focus on long tandem events
+    df_tandem_long <- df_tandem |> filter(tandem_type == "long")
+    
     ggsurvplot(
-      survfit(Surv(duration, cens) ~ treat, data = df_plot),
-      data = df_plot,
+      survfit(Surv(duration, cens) ~ treat, data = df_tandem_long),
+      data = df_tandem_long,
       fun = "cumhaz",
       censor = TRUE,
-      ggtheme = theme_classic(),
-      color = "treat"
+      ggtheme = theme_classic(base_size = 10),
+      color = "treat",
     )$plot+ 
-      scale_color_manual(values = c("#0072B2", "#D55E00", "#009E73", "#CC79A7"), labels = treat_labels)  +
-      scale_fill_manual(values = c("#0072B2", "#D55E00", "#009E73", "#CC79A7"), labels = treat_labels) +
-      scale_y_continuous(breaks = c(0, 5))+
-      coord_cartesian(ylim = c(0, 6.5)) +
+      scale_color_manual(values = treat_colors, labels = treat_labels)  +
       labs(x = "Duration (sec)", y = "Cumulative hazard") +
       theme(aspect.ratio = 3/4,
             legend.title = element_blank(),
             legend.position = c(0.8,0.4))
     
-    ggsave( filename = "output/tandem_duration_cum_hazard.pdf", 
+    ggsave( filename = "output/tandem_duration_cum_hazard_well.pdf", 
             device = cairo_pdf, family = "Arial",
             width = 4, height = 3)
+  
+    fit_cox <- coxme(Surv(duration, cens) ~ treat+ (1|pair_id), data = df_longest_tandem)
+    df_res <- tibble(tidy(Anova(fit_cox)), formula = deparse(formula(fit_cox) ))
+    res <- summary(fit_cox)
+    
+    writeData(wb, "tandem_duration_anova", df_res)
+    writeData(wb, "tandem_duration_coeff", res$coefficients |> round(3))
+    writeData(wb, "tandem_duration_cox.zph", cox.zph(fit_cox))
+    
+    
+    # longest tandem
+    df_longest_tandem <- df_tandem |> group_by(pair_id) |>
+      slice_max(duration, n = 1, with_ties = TRUE) |>
+      ungroup()
+    
+    # longest tandem start later in MM (in sec)
+    ggplot(df_longest_tandem, aes(x = treat, y = start_time, col = treat, fill = treat)) +
+      geom_boxplot(width = 0.1, outliers = F, alpha = 0.1) +
+      geom_jitter(width = 0.1) +
+      scale_color_manual(values = treat_colors, labels = treat_labels)+
+      scale_fill_manual(values = treat_colors, labels = treat_labels)  +
+      scale_x_discrete(labels = treat_labels)+
+      theme_classic(base_size = 9) +
+      labs(x = "", y = "Start time of the logest tandem running (sec)")+
+      theme(aspect.ratio = 1,
+            legend.position = "none")
+    
+    ggsave(filename = "output/longest_tandem_start_sec_well.pdf", 
+           device = cairo_pdf, family = "Arial",
+           width = 3, height = 3)
+    
+    fit_cox <- coxph(Surv(start_time) ~ treat, data = df_longest_tandem)
+    df_res <- tibble(tidy(Anova(fit_cox)), formula = deparse(formula(fit_cox) ))
+    res <- summary(fit_cox)
+
+    writeData(wb, "longest_tandem_time_anova", df_res)
+    writeData(wb, "longest_tandem_time_coeff", res$coefficients |> round(3))
+    writeData(wb, "longest_tandem_time_cox.zph", cox.zph(fit_cox))
+    
+    # longest tandem start later in MM (in event number)
+    ggplot(df_longest_tandem, aes(x = treat, y = tandem_event, col = treat, fill = treat)) +
+      geom_boxplot(width = 0.1, outliers = F, alpha = 0.1) +
+      geom_jitter(width = 0.1) +
+      scale_color_manual(values = treat_colors, labels = treat_labels)+
+      scale_fill_manual(values = treat_colors, labels = treat_labels)  +
+      scale_x_discrete(labels = treat_labels)+
+      scale_y_continuous(breaks = c(0,50,100))+
+      theme_classic(base_size = 9) +
+      labs(x = "", y = "The logest tandem running event")+
+      theme(aspect.ratio = 1,
+            legend.position = "none")
+    
+    ggsave(filename = "output/longest_tandem_start_event_well.pdf", 
+           device = cairo_pdf, family = "Arial",
+           width = 3, height = 3)
+    
+    r <- glm.nb(tandem_event ~ treat,  data = df_longest_tandem)
+    df_res <- tibble(tidy(Anova(r)), formula = deparse(formula(r) ))
+    res <- summary(r)
+    
+    writeData(wb, "longest_tandem_event_anova", df_res)
+    writeData(wb, "longest_tandem_event_coeff", res$coefficients |> round(3))
+    
+    # overlap of the distribution
+    ggplot(df_longest_tandem, aes(x = duration, y = treat, fill = treat, color = treat)) +
+      stat_halfeye( width = 0.4, position = position_nudge(y = 0.11),
+                    .width = 0, point_colour = NA, alpha = 0.7, scale = 0.5) +
+      stat_dots( side = "bottom", dotsize = 0.75, binwidth = 0.08,
+                 alpha = 0.6, position = position_nudge(y = -0.1) ) +
+      geom_boxplot( width = 0.06, outlier.shape = NA,
+                    fill = "white", alpha = 0.6, color = "grey30", linewidth = 0.4 ) +
+      scale_x_log10( breaks = c(1, 10, 100, 1000), labels = scales::label_number()) +
+      scale_y_discrete(labels = treat_labels)+ 
+      #coord_cartesian(ylim = c(1,  2.2)) +
+      scale_color_manual(values = treat_colors, labels = treat_labels)+
+      scale_fill_manual(values = treat_colors, labels = treat_labels)  +
+      labs(x = "Longest tandem duration (s)", y = NULL) +
+      theme_classic(base_size = 10) +
+      theme(aspect.ratio = 1.25, legend.position = "none")
+    
+    ggsave(filename = "output/longest_tandem_duration_well.pdf", 
+           device = cairo_pdf, family = "Arial",
+           width = 3, height = 3)
+    
+    fit_cox <- coxph(Surv(duration, cens) ~ treat, data = df_longest_tandem)
+    df_res <- tibble(tidy(Anova(fit_cox)), formula = deparse(formula(fit_cox) ))
+    res <- summary(fit_cox)
+    res$coefficients
+    
+    writeData(wb, "longest_tandem_duration_anova", df_res)
+    writeData(wb, "longest_tandem_duration_coeff", res$coefficients |> round(3))
+    writeData(wb, "longest_tandem_duration_cox.zph", cox.zph(fit_cox))
+    
+    saveWorkbook(wb, "output/tandem_duration_well.xlsx", overwrite = TRUE)
+    
   }
   
-  # stat
-  {
-    df_plot$treat <- as.factor(df_plot$treat)
-    fit_cox <- coxme(Surv(duration, cens) ~ treat + (1|video/well_id), data = df_plot)
-    res <- Anova(fit_cox)
-    posthoc <- summary(glht(fit_cox, linfct = mcp(treat = "Tukey")))
-    
-    df_res <- tibble(tibble(res), formula = deparse(formula(fit_cox) ))
-    write.csv(df_res, "output/tandem_duration_coxme.csv")
-    df_res <- tidy(posthoc)
-    write.csv(df_res, "output/tandem_duration_coxme_posthoc_Tukey.csv")
-  }
+  
+  df_tandem <- tandem_df(df_pair, gap_max = 1, min_len = 1)
+  ggplot(df_tandem |> filter(duration > 1.5), 
+         aes(x = leader_moved_dis/duration, y  = log10(duration))) +
+    geom_point() +
+    stat_smooth()+
+    facet_wrap(~treat)
 }
-
-# interaction transition ---- 
-{
-  
-  df <- df_dish
-  
-  
-  df_choice <- df %>%
-    filter(!is.na(next_state)) |>
-    filter(state == "interact", next_state %in% c("tandem", "sep"), state != next_state) |>
-    mutate(time_min = floor(time_sec / 300)) |>
-    group_by(time_min, treat, pair_id, colony) |>
-    summarize(
-      sep_prop = mean(next_state == "sep"),
-      tandem_prop = mean(next_state == "tandem"),
-      .groups = "drop"
-    )
-  
-  ggplot(df_choice, aes(x = as.factor(time_min), y = sep_prop, fill = treat, col = treat)) +
-    stat_summary(fun = median, geom = "crossbar", width = 0.5) +
-    scale_color_manual(values = c("#0072B2", "#D55E00", "#009E73", "#CC79A7"))  +
-    labs(y = "P(tandem | interact)", x = NULL) +
-    scale_x_discrete(labels = treat_labels) +
-    coord_cartesian(ylim = c(0, 1)) +
-    scale_y_continuous(breaks = c(0, 0.5, 1), labels = c(0, 0.5, 1)) +
-    theme_classic(base_size = 10) +
-    theme(legend.position = "none", aspect.ratio = 1)
-  
-  
-  %>%
-    count(treat, pair_id, next_state) %>%
-    mutate(prob = n / sum(n),.by = c(treat, pair_id))
-  
-  df_choice_tandem <- df_choice %>%
-    filter(next_state == "tandem")
-  
-  # plot
-  {
-    ggplot(df_choice_tandem, aes(treat, prob, fill = treat, col = treat)) +
-      geom_jitter(width = 0.1, alpha = 0.6, size = 1) +
-      stat_summary(fun = median, geom = "crossbar", width = 0.5) +
-      scale_color_manual(values = c("#0072B2", "#D55E00", "#009E73", "#CC79A7"))  +
-      labs(y = "P(tandem | interact)", x = NULL) +
-      scale_x_discrete(labels = treat_labels) +
-      coord_cartesian(ylim = c(0, 1)) +
-      scale_y_continuous(breaks = c(0, 0.5, 1), labels = c(0, 0.5, 1)) +
-      theme_classic(base_size = 10) +
-      theme(legend.position = "none", aspect.ratio = 1)
-    
-    ggsave( filename = "output/Interaction_transition.pdf", 
-            device = cairo_pdf, family = "Arial",
-            width = 3.5, height = 3.5)
-  }
-  
-  # stat
-  df_stat <- df_state %>%
-    filter(state == "interact", next_state %in% c("tandem", "sep"), state != next_state) %>%
-    mutate(pair_id = paste(video, well_id, sep = "_"),
-           tandem_transition = next_state == "tandem")
-  
-  r <- glmer(tandem_transition ~ treat + (1 | pair_id), data = df_stat,
-             family = binomial)
-  r_sum <- summary(r)
-  res <- Anova(r)
-  posthoc <- summary(glht(r, linfct = mcp(treat = "Tukey")))
-  
-  df_res <- tibble(tibble(res), formula = deparse(formula(r) ))
-  write.csv(df_res, "output/Interaction_transition_glmer.csv")
-  df_res <- tidy(posthoc)
-  write.csv(df_res, "output/Interaction_transition_glmer_posthoc_Tukey.csv")
-  
-  
-  ##
-  df_choice <- df_dish %>%
-    filter(!is.na(next_state)) |>
-    filter(state == "interact", next_state %in% c("tandem", "sep"), state != next_state) %>%
-    count(treat, video, next_state) %>%
-    mutate(prob = n / sum(n),.by = c(treat, video))
-  
-  df_choice_tandem <- df_choice %>%
-    filter(next_state == "tandem")
-  
-  # plot
-  {
-    ggplot(df_choice_tandem, aes(treat, prob, fill = treat, col = treat)) +
-      geom_jitter(width = 0.1, alpha = 0.6, size = 1) +
-      stat_summary(fun = median, geom = "crossbar", width = 0.5) +
-      scale_color_manual(values = c("#0072B2", "#D55E00", "#009E73", "#CC79A7"))  +
-      labs(y = "P(tandem | interact)", x = NULL) +
-      scale_x_discrete(labels = treat_labels) +
-      coord_cartesian(ylim = c(0, 1)) +
-      scale_y_continuous(breaks = c(0, 0.5, 1), labels = c(0, 0.5, 1)) +
-      theme_classic(base_size = 10) +
-      theme(legend.position = "none", aspect.ratio = 1)
-    
-    ggsave( filename = "output/Interaction_transition.pdf", 
-            device = cairo_pdf, family = "Arial",
-            width = 3.5, height = 3.5)
-    }
-  
-  # stat
-  df_stat <- df_state %>%
-    filter(state == "interact", next_state %in% c("tandem", "sep"), state != next_state) %>%
-    mutate(pair_id = video,
-           tandem_transition = next_state == "tandem")
-  
-  r <- glmer(tandem_transition ~ treat + (1 | pair_id), data = df_stat,
-             family = binomial)
-  r_sum <- summary(r)
-  res <- Anova(r)
-  posthoc <- summary(glht(r, linfct = mcp(treat = "Tukey")))
-  
-}  
-
-
 
 # speed ----
 {
   df_dis_dist <- df_pair |> pivot_longer(cols = starts_with("post_step")) |> 
-    dplyr::select(name, value, treat)
+    dplyr::select(name, value, treat, tandem)
   
-  ggplot(df_dis_dist |> filter(value < 1)) +
+  ggplot(df_dis_dist |> filter(tandem)) +
     geom_density_ridges(aes(x = value, y = treat, fill= name), stat = "binline", 
                         alpha = 0.5, binwidth = 0.04, scale = 0.85) +
     labs(x = "Step length (BL)", y = "") +
     scale_y_discrete(expand = c(0, 0.1),labels = treat_labels) +
     scale_x_continuous(breaks = c(0,0.5,1), labels =  c(0,0.5,1)) +
     scale_fill_manual(values = c(post_step_0 = "#1B7837", post_step_1 = "#D8B58A")) +
-    coord_cartesian(xlim = c(0,1)) +
+    coord_cartesian(xlim = c(0,1.5)) +
     theme_classic(base_size = 10) +
     theme(aspect.ratio = 3,
           legend.position = "none")
@@ -608,31 +580,151 @@
          width = 3, height = 5.5)
   
   df_dis_dist <- df_dish |> pivot_longer(cols = starts_with("post_step")) |> 
-    dplyr::select(name, value, treat)
+    dplyr::select(name, value, treat, tandem)
   
-  
-  ggplot(df_dis_dist |> filter(value < 1)) +
+  ggplot(df_dis_dist |> filter(tandem)) +
     geom_density_ridges(aes(x = value, y = treat, fill= name), stat = "binline", 
                         alpha = 0.5, binwidth = 0.04, scale = 0.85) +
     labs(x = "Step length (BL)", y = "") +
     scale_y_discrete(expand = c(0, 0.1),labels = treat_labels) +
     scale_x_continuous(breaks = c(0,0.5,1), labels =  c(0,0.5,1)) +
     scale_fill_manual(values = c(post_step_0 = "#1B7837", post_step_1 = "#D8B58A")) +
-    coord_cartesian(xlim = c(0,1)) +
+    coord_cartesian(xlim = c(0,1.5)) +
     theme_classic(base_size = 10) +
     theme(aspect.ratio = 3,
           legend.position = "none")
   
-  
+  df_pair |>  group_by(pair_id) |> 
+    dplyr::select(pair_id, time_sec, treat, tandem, post_step_0, post_step_1) |>
+    arrange(time_sec, .by_group = TRUE) |>
+    mutate(
+      run_id = rleid(tandem),
+      run_len = ave(tandem, run_id, FUN = length)
+    ) |>
+    mutate(
+      cluster_start = tandem & lag(!tandem, default = TRUE),
+      cluster_idx = cumsum(cluster_start),
+      cluster_idx = if_else(tandem, cluster_idx, NA_integer_),
+      pair_event = if_else(
+        !is.na(cluster_idx),
+        sprintf("%s_%02d", pair_id, cluster_idx),
+        NA_character_
+        )
+      )
 }
 
-# acc ----
+df_analysis <- df_pair |> 
+  group_by(pair_id) |> 
+  dplyr::select(pair_id, time_sec, treat, tandem, post_step_0, post_step_1, follow_dis) |>
+  arrange(time_sec, .by_group = TRUE) |>
+  mutate(
+    run_id = rleid(tandem)
+  ) |> 
+  group_by(pair_id, run_id) |> 
+  mutate(
+    run_duration = max(time_sec) - min(time_sec),
+    tandem = if_else(tandem & run_duration < 1.5, FALSE, tandem)
+  ) |> 
+  group_by(pair_id) |> 
+  mutate(
+    run_id = rleid(tandem), # Recalculate IDs since some TRUE states became FALSE
+    is_onset = tandem & lag(!tandem, default = FALSE),
+    is_offset = !tandem & lag(tandem, default = FALSE)
+  ) |> 
+  ungroup()
+
+extract_window <- function(df, flag_col, window_size = 10) {
+  event_indices <- which(df[[flag_col]])
+  if(length(event_indices) == 0) return(tibble())
+  
+  lapply(seq_along(event_indices), function(i) {
+    idx <- event_indices[i]
+    start_idx <- max(1, idx - window_size)
+    end_idx <- min(nrow(df), idx + window_size)
+    
+    df[start_idx:end_idx, ] |> 
+      mutate(
+        event_instance = i,
+        relative_step = (start_idx:end_idx) - idx
+      )
+  }) |> bind_rows()
+}
+
+df_onsets <- df_analysis |> 
+  group_split() |> 
+  lapply(extract_window, flag_col = "is_onset", window_size = 5) |> 
+  bind_rows()
+
+df_onsets <- df_onsets |> filter( ((relative_step < 0) & !tandem) | ((relative_step >= 0) & tandem) )   
+
+df_plot_onset <- df_onsets |>
+  pivot_longer(cols = c(post_step_0, post_step_1), names_to = "step_type", values_to = "step_length") |>
+  #pivot_longer(cols = c(acc_0, acc_1), names_to = "step_type", values_to = "step_length") |>
+  group_by(relative_step, step_type, treat) |>
+  summarise(mean_step = mean(step_length, na.rm = TRUE), .groups = 'drop')
+
+ggplot(df_plot_onset, aes(x = relative_step, y = mean_step, color = step_type)) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "red") +
+  geom_line(size = 1) +
+  facet_wrap(~treat) +
+  labs(
+    title = "Step Length Dynamics Heading Into Tandem Run",
+    x = "Relative Steps (0 = Tandem Starts)",
+    y = "Mean Step Length"
+  ) +
+  theme_minimal()
+
+df_offsets <- df_analysis |> 
+  group_split() |> 
+  lapply(extract_window, flag_col = "is_offset", window_size = 15) |> 
+  bind_rows()
+
+
+df_offsets <- df_offsets |> filter( ((relative_step < 0) & tandem) | ((relative_step >= 0) & !tandem) )   
+
+df_dis_dist <- df_offsets |> pivot_longer(cols = starts_with("post_step")) |> 
+  dplyr::select(name, value, treat, tandem)
+
+ggplot(df_dis_dist) +
+  geom_density_ridges(aes(x = value, y = treat, fill= name), stat = "binline", 
+                      alpha = 0.5, binwidth = 0.04, scale = 0.85) +
+  labs(x = "Step length (BL)", y = "") +
+  scale_y_discrete(expand = c(0, 0.1),labels = treat_labels) +
+  scale_x_continuous(breaks = c(0,0.5,1), labels =  c(0,0.5,1)) +
+  scale_fill_manual(values = c(post_step_0 = "#1B7837", post_step_1 = "#D8B58A")) +
+  coord_cartesian(xlim = c(0,1.5)) +
+  theme_classic(base_size = 10) +
+  theme(aspect.ratio = 3,
+        legend.position = "none")
+
+
+df_plot_offset <- df_offsets |>
+  pivot_longer(cols = c(post_step_0, post_step_1), names_to = "step_type", values_to = "step_length") |>
+  #pivot_longer(cols = c(acc_0, acc_1), names_to = "step_type", values_to = "step_length") |>
+  group_by(relative_step, step_type, treat) |>
+  summarise(mean_step = mean(step_length, na.rm = TRUE), .groups = 'drop')
+
+ggplot(df_plot_offset, aes(x = relative_step, y = mean_step, color = step_type)) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "red") +
+  geom_line(size = 1) +
+  facet_wrap(~treat) +
+  labs(
+    title = "Step Length Dynamics Heading Into Tandem Run",
+    x = "Relative Steps (0 = Tandem Starts)",
+    y = "Mean Step Length"
+  ) +
+  theme_minimal()
+
+df_offsets |> filter(relative_step < 0)
+
+
+# acc ----1
 {
-  df_dis_acc <- df_pair |> dplyr::select(follow_dis, acc_0, acc_1, treat) |>
+  df_dis_acc <- df_analysis |> dplyr::select(follow_dis, acc_0, acc_1, treat, tandem) |>
     mutate(follow_dis_bin = round(follow_dis, 1)) |>
     pivot_longer(cols = starts_with("acc"))
   
-  ggplot(df_dis_acc |> filter(follow_dis_bin < 1.5), 
+  ggplot(df_dis_acc |> filter(tandem), 
          aes(x = follow_dis_bin, y = value)) + 
     stat_summary(geom = "ribbon", fun.data = mean_se, alpha = 0.2, aes(fill = name) ) +
     stat_summary(geom = "line", fun = mean, linewidth = 1, aes(col = name)) +
@@ -642,7 +734,7 @@
     scale_x_continuous(breaks = c(0,0.5,1), labels =  c(0,0.5,1)) +
     scale_y_continuous(breaks = c(-0.03, 0, 0.03), 
                        labels = c(-0.03, 0, 0.03)) +
-    coord_cartesian(xlim = c(0, 1.1), ylim = c(-0.035, 0.035))+
+    #coord_cartesian(xlim = c(0, 1.1), ylim = c(-0.035, 0.035))+
     theme_bw(base_size = 11) +
     facet_wrap(~ treat, labeller = labeller(treat = treat_labels)) +
     labs(x = "Distance (BL)", y = "Accerelation (BL/sec2)") +
