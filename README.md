@@ -1,7 +1,7 @@
 # README
 ## Article Information
 This repository provides access to the data and source code used for the manuscript  
-**Intentional or mistaken? Termites start pairing broadly but refine choices**  
+**Beyond mistakes: same-sex partner acceptance and mating filter coexist in termite pairing**  
 **Nobuaki Mizumoto, Elijah P. Carroll**  
 **Paper DOI:** [TBA]
 
@@ -21,16 +21,24 @@ This repository includes tracking data, R code to analyze it, and Python code fo
 ## Setup & Dependencies
 Scripts are written in R and Python, tested on Windows 11 (64-bit).
 
-### R Session Info
-```
+### R Environment
+
+The R environment is managed using `renv`. Package versions used in the analyses are recorded in `renv.lock`.
+To reproduce the R environment:
+
+```r
+install.packages("renv")
+renv::restore()
 ```
 
 ### Python Environment
-```
-```
 
-## Citation
-TBA
+Python scripts were developed using Python 3.11.4
+Required Python packages can be installed using:
+
+```python
+pip install -r requirements.txt
+```
 
 ## License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

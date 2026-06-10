@@ -279,6 +279,7 @@
   
   df_dish <- df_dish |> mutate(
     tandem = follow_dis < 1.5 & lead_dis > 1.5,
+    rev_tandem = lead_dis < 1.5 & follow_dis > 1.5,
     interact = partner_dis < 2) |> 
     mutate(state = case_when(
       tandem ~ "tandem",

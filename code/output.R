@@ -35,10 +35,16 @@
     left_join(df_attack |> dplyr::select(pair_id, fetal_attack_sec), by = "pair_id") |> 
     mutate(fetal_attack_sec = if_else(is.na(fetal_attack_sec), 1801, fetal_attack_sec)) |> 
     filter(time_sec < fetal_attack_sec) |> dplyr::select(-fetal_attack_sec)
+  
+  # MM pair can show either tandem
+  df_dish <- df_dish |> mutate(
+    tandem = ifelse(treat == "MM", tandem | rev_tandem, tandem)
+  )
+  
 }
 
 # plot relative positions ----
-{
+if(F){
   df_rel <- df_pair |>
     mutate(rx0 = partner_dis * cos(dir_1to0),
            ry0 = partner_dis * sin(dir_1to0),
@@ -106,7 +112,7 @@
             device = svglite, fix_text_size = FALSE, 
             width = 3, height = 3, bg = "transparent")
     
-    df_out <- plot_tandem_prop_time(df_dish, time_bin = 60)
+    df_out <- plot_tandem_prop_time(df_dish_temp, time_bin = 60)
     df_tandem_prop_dish = df_out[[1]]
     ggsave(df_out[[2]], filename = "output/tandem_prop_dish.svg", 
            device = svglite, fix_text_size = FALSE,
@@ -216,8 +222,8 @@
     df_tandem <- tandem_df(df_dish, gap_max = 1, min_len = 1)
     
     wb <- createWorkbook()
-    addWorksheet(wb, "short_tandem_anova")
-    addWorksheet(wb, "short_tandem_coeff")
+    addWorksheet(wb, "long_tandem_prop_anova")
+    addWorksheet(wb, "long_tandem_prop_coeff")
     addWorksheet(wb, "longest_tandem_time_anova")
     addWorksheet(wb, "longest_tandem_time_coeff")
     addWorksheet(wb, "longest_tandem_time_cox.zph")
@@ -254,9 +260,17 @@
     # use min to avoid convergence error
     fit <- glmer(tandem_type == "long" ~ treat * start_time_min + (1|pair_id),
                  family = binomial, data = df_tandem)
-    df_res <- tibble(tidy(Anova(fit)), formula = deparse(formula(fit) ))
+    r <- Anova(fit)
+    df_res <- tibble(tidy(), formula = deparse(formula(fit) ))
     res <- summary(fit)
     
+    pairwise_res <- emtrends(fit, pairwise ~ treat, var = "start_time_min")
+    
+    test(pairwise_res)
+    
+    writeData(wb, "long_tandem_prop_anova", df_res)
+    writeData(wb, "long_tandem_prop_coeff", res$coefficients |> round(3))
+
     # plot
     pred_df <- expand.grid(
       treat = c("FM", "MM"),
@@ -307,7 +321,7 @@
       ungroup()
     
     # longest tandem start later in MM (in sec)
-    ggplot(df_longest_tandem, aes(x = treat, y = start_time, col = treat, fill = treat)) +
+    p_sec <- ggplot(df_longest_tandem, aes(x = treat, y = start_time, col = treat, fill = treat)) +
       geom_boxplot(width = 0.1, outliers = F, alpha = 0.1) +
       geom_jitter(width = 0.1) +
       scale_color_manual(values = treat_colors, labels = treat_labels)+
@@ -317,10 +331,6 @@
       labs(x = "", y = "Start time of the logest tandem running (sec)")+
       theme(aspect.ratio = 1,
             legend.position = "none")
-    
-    ggsave(filename = "output/longest_tandem_start_sec_dish.svg", 
-           device = svglite, fix_text_size = FALSE,
-           width = 3, height = 3)
     
     fit_cox <- coxph(Surv(start_time) ~ treat, data = df_longest_tandem)
     df_res <- tibble(tidy(Anova(fit_cox)), formula = deparse(formula(fit_cox) ))
@@ -332,7 +342,7 @@
     writeData(wb, "longest_tandem_time_cox.zph", cox.zph(fit_cox))
     
     # longest tandem start later in MM (in event number)
-    ggplot(df_longest_tandem, aes(x = treat, y = tandem_event, col = treat, fill = treat)) +
+    p_num <- ggplot(df_longest_tandem, aes(x = treat, y = tandem_event, col = treat, fill = treat)) +
       geom_boxplot(width = 0.1, outliers = F, alpha = 0.1) +
       geom_jitter(width = 0.1) +
       scale_color_manual(values = treat_colors, labels = treat_labels)+
@@ -344,9 +354,11 @@
       theme(aspect.ratio = 1,
             legend.position = "none")
     
-    ggsave(filename = "output/longest_tandem_start_event_dish.svg", 
+    p_sec + p_num
+    
+    ggsave(filename = "output/longest_tandem_start_dish.svg", 
            device = svglite, fix_text_size = FALSE,
-           width = 3, height = 3)
+           width = 6, height = 3)
     
     r <- glm.nb(tandem_event ~ treat,  data = df_longest_tandem)
     df_res <- tibble(tidy(Anova(r)), formula = deparse(formula(r) ))
@@ -365,7 +377,7 @@
       geom_boxplot( width = 0.06, outlier.shape = NA,
                     fill = "white", alpha = 0.6, color = "grey30", linewidth = 0.4 ) +
       scale_x_log10( breaks = c(1, 10, 100, 1000), labels = scales::label_number()) +
-      scale_y_discrete(labels = treat_labels)+ 
+      scale_y_discrete(labels = treat_labels, limits = rev)+ 
       coord_cartesian(ylim = c(1,  2.2)) +
       scale_color_manual(values = treat_colors, labels = treat_labels)+
       scale_fill_manual(values = treat_colors, labels = treat_labels)  +
@@ -408,8 +420,8 @@
     df_tandem <- tandem_df(df_pair, gap_max = 1, min_len = 1)
     
     wb <- createWorkbook()
-    addWorksheet(wb, "short_tandem_anova")
-    addWorksheet(wb, "short_tandem_coeff")
+    addWorksheet(wb, "long_tandem_prop_anova")
+    addWorksheet(wb, "long_tandem_prop_coeff")
     addWorksheet(wb, "longest_tandem_time_anova")
     addWorksheet(wb, "longest_tandem_time_coeff")
     addWorksheet(wb, "longest_tandem_time_cox.zph")
@@ -454,9 +466,11 @@
     df_res <- tibble(tidy(Anova(fit)), formula = deparse(formula(fit) ))
     res <- summary(fit)
     pairwise_res <- emtrends(fit, pairwise ~ treat, var = "start_time_min")
+    test(pairwise_res$emtrends)
+    pairwise_res$contrasts
     
-    writeData(wb, "short_tandem_anova", df_res)
-    writeData(wb, "short_tandem_coeff", res$coefficients |> round(3))
+    writeData(wb, "long_tandem_prop_anova", df_res)
+    writeData(wb, "long_tandem_prop_coeff", res$coefficients |> round(3))
     
     pred_df <- expand.grid(
       treat = unique(df_tandem$treat),
@@ -503,20 +517,26 @@
       censor = TRUE,
       ggtheme = theme_classic(base_size = 10),
       color = "treat",
+      xlimits = c(1,1600),
     )$plot+ 
+      scale_x_continuous(trans = "pseudo_log", 
+                         breaks = c(1,10,100,1000)) +
       scale_color_manual(values = treat_colors, labels = treat_labels)  +
       labs(x = "Duration (sec)", y = "Cumulative hazard") +
       theme(aspect.ratio = 3/4,
             legend.title = element_blank(),
-            legend.position = c(0.8,0.4))
+            legend.position = c(0.25,0.9))
     
     ggsave( filename = "output/tandem_duration_cum_hazard_well.svg", 
             device = svglite, fix_text_size = FALSE,
             width = 4, height = 3)
   
-    fit_cox <- coxme(Surv(duration, cens) ~ treat+ (1|pair_id), data = df_longest_tandem)
+    fit_cox <- coxme(Surv(duration, cens) ~ treat+ (1|pair_id), data = df_tandem_long)
     df_res <- tibble(tidy(Anova(fit_cox)), formula = deparse(formula(fit_cox) ))
     res <- summary(fit_cox)
+    EMM <- emmeans(fit_cox, "treat")
+    contrast(EMM, "pairwise")
+    emtrends
     
     writeData(wb, "tandem_duration_anova", df_res)
     writeData(wb, "tandem_duration_coeff", res$coefficients |> round(3))
@@ -529,7 +549,7 @@
       ungroup()
     
     # longest tandem start later in MM (in sec)
-    ggplot(df_longest_tandem, aes(x = treat, y = start_time, col = treat, fill = treat)) +
+    p1 <- ggplot(df_longest_tandem, aes(x = treat, y = start_time, col = treat, fill = treat)) +
       geom_boxplot(width = 0.1, outliers = F, alpha = 0.1) +
       geom_jitter(width = 0.1) +
       scale_color_manual(values = treat_colors, labels = treat_labels)+
@@ -538,13 +558,12 @@
       theme_classic(base_size = 9) +
       labs(x = "", y = "Start time of the logest tandem running (sec)")+
       theme(aspect.ratio = 1,
-            legend.position = "none")
+            legend.position = "none",
+            axis.text.x = element_text(angle = 45, hjust = 1))
     
-    ggsave(filename = "output/longest_tandem_start_sec_well.svg", 
-           device = svglite, fix_text_size = FALSE,
-           width = 3, height = 3)
     
     fit_cox <- coxph(Surv(start_time) ~ treat, data = df_longest_tandem)
+    Anova(fit_cox)
     df_res <- tibble(tidy(Anova(fit_cox)), formula = deparse(formula(fit_cox) ))
     res <- summary(fit_cox)
 
@@ -553,7 +572,7 @@
     writeData(wb, "longest_tandem_time_cox.zph", cox.zph(fit_cox))
     
     # longest tandem start later in MM (in event number)
-    ggplot(df_longest_tandem, aes(x = treat, y = tandem_event, col = treat, fill = treat)) +
+    p2 <- ggplot(df_longest_tandem, aes(x = treat, y = tandem_event, col = treat, fill = treat)) +
       geom_boxplot(width = 0.1, outliers = F, alpha = 0.1) +
       geom_jitter(width = 0.1) +
       scale_color_manual(values = treat_colors, labels = treat_labels)+
@@ -563,13 +582,19 @@
       theme_classic(base_size = 9) +
       labs(x = "", y = "The logest tandem running event")+
       theme(aspect.ratio = 1,
-            legend.position = "none")
+            legend.position = "none",
+            axis.text.x = element_text(angle = 45, hjust = 1))
     
-    ggsave(filename = "output/longest_tandem_start_event_well.svg", 
+    p1 + p2
+    
+    ggsave(p1 + p2, filename = "output/longest_tandem_start_well.svg", 
            device = svglite, fix_text_size = FALSE,
-           width = 3, height = 3)
+           width = 6, height = 4)
     
     r <- glm.nb(tandem_event ~ treat,  data = df_longest_tandem)
+    Anova(r)
+    EMM <- emmeans(r, "treat")
+    contrast(EMM, "pairwise")
     df_res <- tibble(tidy(Anova(r)), formula = deparse(formula(r) ))
     res <- summary(r)
     
@@ -613,13 +638,6 @@
     
   }
   
-  
-  df_tandem <- tandem_df(df_pair, gap_max = 1, min_len = 1)
-  ggplot(df_tandem |> filter(duration > 1.5), 
-         aes(x = leader_moved_dis/duration, y  = log10(duration))) +
-    geom_point() +
-    stat_smooth()+
-    facet_wrap(~treat)
 }
 
 # speed ----
@@ -627,35 +645,36 @@
   df_dis_dist <- df_pair |> pivot_longer(cols = starts_with("post_step")) |> 
     dplyr::select(name, value, treat, tandem)
   
-  ggplot(df_dis_dist |> filter(tandem)) +
+  p_well <- ggplot(df_dis_dist |> filter(tandem)) +
     geom_density_ridges(aes(x = value, y = treat, fill= name), stat = "binline", 
                         alpha = 0.5, binwidth = 0.04, scale = 0.85) +
     labs(x = "Step length (BL)", y = "") +
-    scale_y_discrete(expand = c(0, 0.1),labels = treat_labels) +
+    scale_y_discrete(expand = c(0, 0.1),labels = treat_labels, , limits = rev) +
     scale_x_continuous(breaks = c(0,0.5,1), labels =  c(0,0.5,1)) +
     scale_fill_manual(values = c(post_step_0 = "#1B7837", post_step_1 = "#D8B58A")) +
     coord_cartesian(xlim = c(0,1.5)) +
     theme_classic(base_size = 10) +
     theme(aspect.ratio = 3,
           legend.position = "none")
-  
-  ggsave("output/step_distribution.svg", device = svglite, fix_text_size = FALSE,
-         width = 3, height = 5.5)
   
   df_dis_dist <- df_dish |> pivot_longer(cols = starts_with("post_step")) |> 
     dplyr::select(name, value, treat, tandem)
   
-  ggplot(df_dis_dist |> filter(tandem)) +
+  p_dish <- ggplot(df_dis_dist |> filter(tandem)) +
     geom_density_ridges(aes(x = value, y = treat, fill= name), stat = "binline", 
                         alpha = 0.5, binwidth = 0.04, scale = 0.85) +
     labs(x = "Step length (BL)", y = "") +
-    scale_y_discrete(expand = c(0, 0.1),labels = treat_labels) +
+    scale_y_discrete(expand = c(0, 0.1),labels = treat_labels, limits = rev) +
     scale_x_continuous(breaks = c(0,0.5,1), labels =  c(0,0.5,1)) +
     scale_fill_manual(values = c(post_step_0 = "#1B7837", post_step_1 = "#D8B58A")) +
     coord_cartesian(xlim = c(0,1.5)) +
     theme_classic(base_size = 10) +
-    theme(aspect.ratio = 3,
+    theme(aspect.ratio = 1.5,
           legend.position = "none")
+  
+  p_well + p_dish + plot_layout(design = design)
+  ggsave("output/step_distribution.svg", device = svglite, fix_text_size = FALSE,
+         width = 5, height = 5.5)
   
   df_dis_acc <- df_pair |> dplyr::select(follow_dis, post_step_0, post_step_1, treat, tandem) |>
     mutate(follow_dis_bin = round(follow_dis, 1)) |>
@@ -690,55 +709,35 @@
 # acc ----
 {
   df_dis_acc <- df_pair |> dplyr::select(follow_dis, acc_0, acc_1, treat, tandem) |>
-    mutate(follow_dis_bin = round(follow_dis, 1),
-           treat_new = treat == "FM") |> filter(abs(acc_0) > min_acc | abs(acc_1) > min_acc) |> 
     pivot_longer(cols = starts_with("acc"))
   
   ggplot(df_dis_acc |> filter(tandem), 
-         aes(x = follow_dis_bin, y = value)) + 
-    stat_summary(geom = "ribbon", fun.data = mean_se, alpha = 0.2, aes(fill = name) ) +
-    stat_summary(geom = "line", fun = mean, linewidth = 1, aes(col = name)) +
-    scale_color_manual(values = c(acc_0 = "#1B7837", acc_1 = "#D8B58A")) +
+         aes(x = follow_dis, y = value, col = name, fill = name)) + 
+    stat_smooth()+
+    scale_color_manual(values = c(acc_0 = "#1B7837", acc_1 = "#D8B58A"),
+                       labels = c(acc_0 = "Leader", acc_1 = "Follower")) +
     scale_fill_manual(values = c(acc_0 = "#1B7837", acc_1 = "#D8B58A")) +
     geom_hline(yintercept = 0)+
-    scale_x_continuous(breaks = c(0,0.5,1), labels =  c(0,0.5,1)) +
+    scale_x_continuous(breaks = c(0,0.5,1, 1.5), labels =  c(0,0.5,1, 1.5)) +
     scale_y_continuous(breaks = c(-0.03, 0, 0.03), 
                        labels = c(-0.03, 0, 0.03)) +
-    #coord_cartesian(xlim = c(0, 1.1), ylim = c(-0.035, 0.035))+
-    theme_bw(base_size = 11) +
-    facet_wrap(~ treat_new, labeller = labeller(treat = treat_labels)) +
-    labs(x = "Distance (BL)", y = "Accerelation (BL/sec2)") +
-    theme(strip.placement = "outside",
-          strip.background = element_blank(),
-          legend.position = "none",
-          legend.title = element_blank(),
-          aspect.ratio = 3/4
-          )
-  
-  ggsave("output/accerelation.svg", device = svglite, fix_text_size = FALSE,
-         width = 5, height = 4)
-  
-  
-  ggplot(df_dis_acc |> filter(tandem), 
-         aes(x = follow_dis_bin, y = value)) + 
-    stat_summary(geom = "ribbon", fun.data = mean_se, alpha = 0.2, aes(fill = name) ) +
-    stat_summary(geom = "line", fun = mean, linewidth = 1, aes(col = name)) +
-    scale_color_manual(values = c(acc_0 = "#1B7837", acc_1 = "#D8B58A")) +
-    scale_fill_manual(values = c(acc_0 = "#1B7837", acc_1 = "#D8B58A")) +
-    geom_hline(yintercept = 0)+
-    scale_x_continuous(breaks = c(0,0.5,1), labels =  c(0,0.5,1)) +
-    scale_y_continuous(breaks = c(-0.03, 0, 0.03), 
-                       labels = c(-0.03, 0, 0.03)) +
-    #coord_cartesian(xlim = c(0, 1.1), ylim = c(-0.035, 0.035))+
+    coord_cartesian(xlim = c(0, 1.5), ylim = c(-0.05, 0.05))+
     theme_bw(base_size = 11) +
     facet_wrap(~ treat, labeller = labeller(treat = treat_labels)) +
     labs(x = "Distance (BL)", y = "Accerelation (BL/sec2)") +
+    guides(fill = "none") +
     theme(strip.placement = "outside",
           strip.background = element_blank(),
-          legend.position = "none",
+          legend.position = c(0.9,0.9),
+          legend.background = element_blank(),
           legend.title = element_blank(),
-          aspect.ratio = 3/4
+          legend.key = element_blank(),
+          aspect.ratio = 3/4,
+          panel.grid = element_blank()
     )
+  
+  ggsave("output/accerelation_well.svg", device = svglite, fix_text_size = FALSE,
+         width = 5, height = 4)
   
 }
 
