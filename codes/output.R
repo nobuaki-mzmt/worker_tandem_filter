@@ -261,7 +261,7 @@ if(F){
     fit <- glmer(tandem_type == "long" ~ treat * start_time_min + (1|pair_id),
                  family = binomial, data = df_tandem)
     r <- Anova(fit)
-    df_res <- tibble(tidy(), formula = deparse(formula(fit) ))
+    df_res <- tibble(tidy(r), formula = deparse(formula(fit) ))
     res <- summary(fit)
     
     pairwise_res <- emtrends(fit, pairwise ~ treat, var = "start_time_min")
@@ -750,17 +750,78 @@ if(F){
 
 # attack in MW2 ----
 {
-  df <- read.csv("data_raw/master_well.csv")
+  df <- read.csv("data_raw/worker_attack.csv")
+  df <- df |> dplyr::select(-Note) |>
+    mutate(id = paste(Video,well, sep = "_"))
   
-  chisq.test(matrix(c(5,9,0,17), ncol= 2) )
-  fisher.test(matrix(c(5,9,0,17), ncol= 2) )
+  library(irr)
   
-  df_mw2 <- df |> filter(treat == "MW2")
+  colnames(df)
   
-  df_mw2 |> dim()
-  df_mw2 |> filter(alate_damaged == 1) |> dim()
+  irr_df <- function(df, variable){
+    df %>%
+      dplyr::select(id, observer, {{variable}}) %>%
+      pivot_wider(
+        names_from = observer,
+        values_from = {{variable}}
+      ) |> dplyr::select(-id)
+    
+  }
   
-  df_damaged <- df_mw2 |> filter(alate_damaged == 1)
+  # alate damaged
+  df_irr <- irr_df(df, alate_damaged)
+  kappa2(df_irr)
+  table(df_irr)
+  
+  # tandem_before_attack
+  df_irr <- irr_df(df, tandem_before_attack)
+  kappa2(df_irr)
+  table(df_irr)
+  
+  # tandem after attack
+  df_irr <- irr_df(df, tandem_after_attack)
+  kappa2(df_irr)
+  table(df_irr)
+  
+  # fisrt_bite_sec
+  df_irr <- irr_df(df, fisrt_bite_sec)
+  icc(df_irr)
+  
+  # amputation_sec
+  df_irr <- irr_df(df, amputation_sec)
+  icc(df_irr)
+  
+  observer_labels <- c("EC" = "Observer 1", "NM" = "Observer 2")
+  
+  p1 <- ggplot(df, aes(x = observer, y = fisrt_bite_sec, group = id)) +
+    geom_line(color = "gray70", alpha = 0.7) +
+    geom_point(size = 2, color = "dodgerblue4") +
+    scale_x_discrete(labels = observer_labels) + 
+    scale_y_continuous(limits = c(0, 1000)) +
+    labs(x = NULL, y = "Event time (sec)", title = "First Bite") +
+    theme_classic(base_size = 9) +
+    theme(aspect.ratio = 1)
+  
+  p2 <- ggplot(df, aes(x = observer, y = amputation_sec, group = id)) +
+    geom_line(color = "gray70", alpha = 0.7) +
+    geom_point(size = 2, color = "firebrick3") +
+    scale_x_discrete(labels = observer_labels) + 
+    scale_y_continuous(limits = c(0, 1000)) +
+    labs(x = NULL, y = NULL, title = "Amputation") +
+    theme_classic(base_size = 9) +
+    theme(
+      aspect.ratio = 1,
+      axis.text.y = element_blank(),
+      axis.ticks.y = element_blank()
+    )
+  
+  p1+p2
+  ggsave(filename = "output/interobserver_variability.svg", 
+         device = svglite, fix_text_size = FALSE,
+         width = 4, height = 3)
+  
+  #
+  df_damaged <- df |> filter(alate_damaged == 1 , observer == "EC")
   
   p_before  <- mean(df_damaged$tandem_before_attack == 1, na.rm = TRUE)
   p_after   <- mean(df_damaged$tandem_after_attack == 1, na.rm = TRUE)
@@ -796,10 +857,10 @@ if(F){
   df_stacked$Type  <- factor(df_stacked$Type, levels = c("Non-Tandem", "Tandem Run"))
   
   ggplot(df_stacked, aes(x = Group, y = Proportion, fill = Type)) +
-    geom_col(width = 0.5, position = "stack", color = "white", linewidth = 0.6) +
+    geom_col(width = 0.5, position = position_stack(reverse = TRUE), color = "white", linewidth = 0.6) +
     geom_text(
       aes(label = paste0("n = ", Count)), 
-      position = position_stack(vjust = 0.5), 
+      position = position_stack(vjust = 0.5, reverse = TRUE),
       color = "white", 
       fontface = "bold",
       size = 4
