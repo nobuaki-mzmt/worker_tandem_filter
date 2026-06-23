@@ -1,7 +1,7 @@
 # README
 ## Article Information
 This repository provides access to the source code used for the manuscript  
-**Beyond mistakes: same-sex partner acceptance and mating filter coexist in termite pairing**  
+**Beyond mistakes: same-sex partner acceptance and broad mating filters coexist in termite pairing**  
 **Nobuaki Mizumoto, Elijah P. Carroll**  
 **Paper DOI:** [TBA]
 
