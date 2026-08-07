@@ -157,9 +157,13 @@
       values_from = starts_with("x_") | starts_with("y_")
     )
     
-    
-    df_body <- df_body |> group_by(video, well_id) |> 
-      summarise(body_length = mean(body_length))
+    # modification 2026-08-03 08:50
+    # body length was mean within each group
+    #df_body <- df_body |> group_by(video, well_id) |> 
+    #  summarise(body_length = mean(body_length), .groups = "drop")
+    # redo the analysis using male body length fixed (same for dish)
+    df_body <- df_body |> group_by(video, well_id) |> filter(role == "male") |>
+      summarise(body_length = mean(body_length), .groups = "drop")
     
     df_pair <- df_pair |> left_join(df_body, by = c("video", "well_id")) |>
       mutate(across(starts_with("x_"), ~ .x / body_length),
@@ -251,7 +255,9 @@
     values_from = starts_with("x_") | starts_with("y_")
   )
   
-  df_body <- df_body |> group_by(video) |> 
+  df_body <- df_body |> 
+    filter(ind_id == 1 | (ind_id == 0 & str_detect(video, "MM"))) |>  # for only male size
+    group_by(video) |> 
     summarise(body_length = mean(body_length))
   
   df_dish <- df_dish |> left_join(df_body, by = c("video")) |>
