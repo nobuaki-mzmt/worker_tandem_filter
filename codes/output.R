@@ -331,7 +331,7 @@ if(F){
                   aes(x = start_time_min, y = prob, color = treat),
                   linewidth = 1) +
         scale_color_manual(values = treat_colors, labels = treat_labels) +
-        scale_size_continuous(range = c(1, 3), name = "n events", breaks = c(100,150)) +
+        scale_size_continuous(range = c(1, 3), name = "n events") +
         labs(x = "Start time (min)", y = "Prob of long tandem", color = NULL) +
         scale_y_continuous(limits = c(0,1), breaks = c(0,0.5,1), label = c(0,0.5,1)) +
         theme_classic(base_size = 10) +
@@ -422,11 +422,7 @@ if(F){
                                   family = binomial, data = df_tandem)
       
       performance::check_overdispersion(fit_glmm_long_prop)
-      Anova_table(fit_glmm_long_prop)
-      get_coef(fit_glmm_long_prop)
       pairwise_res <- emtrends(fit_glmm_long_prop, pairwise ~ treat, var = "start_time_min")
-      test(pairwise_res$emtrends)
-      pairwise_res$contrasts
       
       # duration of all long tandem events
       fit_coxme_long_duration <- coxme(Surv(duration, cens) ~ treat + (1|colony/pair_id), 
@@ -434,7 +430,7 @@ if(F){
       Anova_table(fit_coxme_long_duration)
       get_coef(fit_coxme_long_duration)
       EMM <- emmeans(fit_coxme_long_duration, "treat")
-      contrast(EMM, "pairwise")
+      
       
       # longest tandem start later in MM (in sec)
       fit_coxme_longest_latency <- coxme(Surv(start_time) ~ treat + (1|colony), 
@@ -458,11 +454,11 @@ if(F){
       {
         sheets <- list(
           "lt_prop_glmm_anova"      = Anova_table(fit_glmm_long_prop),
-          "lt_prop_glmm_coef"       = get_coef(fit_glmm_long_prop),
-          "lt_prop_glmm_trends"     = as.data.frame(pairwise_res$emtrends),
-          "lt_prop_glmm_pairwise"   = as.data.frame(pairwise_res$contrasts),
+          "lt_prop_glmm_coef"       = test(pairwise_res$emtrends)|> round3(),
+          "lt_prop_glmm_trends"     = as.data.frame(pairwise_res$emtrends)|> round3(),
+          "lt_prop_glmm_pairwise"   = as.data.frame(pairwise_res$contrasts)|> round3(),
           "long_dur_coxme_anova"    = Anova_table(fit_coxme_long_duration),
-          "long_dur_coxme_coef"     = get_coef(fit_coxme_long_duration),
+          "long_dur_coxme_pairwise" = as.data.frame(contrast(EMM, "pairwise"))|> round3(),
           "long_dur_coxme_zph"      = as.data.frame(cox.zph(fit_coxme_long_duration)$table),
           "lt_time_coxme_anova"     = Anova_table(fit_coxme_longest_latency),
           "lt_time_coxme_coef"      = get_coef(fit_coxme_longest_latency),
@@ -602,7 +598,7 @@ if(F){
 # speed ----
 {
   df_dis_dist <- df_pair |> pivot_longer(cols = starts_with("post_step")) |> 
-    dplyr::select(name, value, treat, tandem)
+    dplyr::select(name, value, treat, tandem, pair_id, colony)
   
   p_well <- ggplot(df_dis_dist |> filter(tandem)) +
     geom_density_ridges(aes(x = value, y = treat, fill= name), stat = "binline", 
@@ -615,9 +611,16 @@ if(F){
     theme_classic(base_size = 10) +
     theme(aspect.ratio = 3,
           legend.position = "none")
+   
+  df_stat <- df_dis_dist |> filter(tandem, name == "post_step_0") 
+  r <- lmer(value ~ treat + (1|colony/pair_id), df_stat)
+  Anova(r)
+  EMM <- emmeans(r, specs = "treat")
+  contrast(EMM, "pairwise")
   
   df_dis_dist <- df_dish |> pivot_longer(cols = starts_with("post_step")) |> 
-    dplyr::select(name, value, treat, tandem)
+    dplyr::select(name, value, treat, tandem, pair_id, colony)
+  
   
   p_dish <- ggplot(df_dis_dist |> filter(tandem)) +
     geom_density_ridges(aes(x = value, y = treat, fill= name), stat = "binline", 
@@ -630,6 +633,12 @@ if(F){
     theme_classic(base_size = 10) +
     theme(aspect.ratio = 1.5,
           legend.position = "none")
+  
+  df_stat <- df_dis_dist |> filter(tandem, name == "post_step_0") 
+  r <- lmer(value ~ treat + (1|colony/pair_id), df_stat)
+  Anova(r)
+  EMM <- emmeans(r, specs = "treat")
+  contrast(EMM, "pairwise")
   
   design <- "
     A#
