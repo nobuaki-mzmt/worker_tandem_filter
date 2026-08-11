@@ -3,7 +3,8 @@
 This repository provides access to the source code used for the manuscript  
 **Beyond mistakes: same-sex partner acceptance and broad mating filters coexist in termite pairing**  
 **Nobuaki Mizumoto, Elijah P. Carroll**  
-**Paper DOI:** [TBA]
+**Preprint:** [EcoEvoRxiv](https://doi.org/10.32942/X28T0C)  
+**Published article:** TBA
 
 This study investigates the broadness of tandem running behavior in a termite _Reticulitermes amamianus_. During mating season, mating pairs perform tandem running while looking for a nest site, by males following females. We investigated whether males follow similar to females but non-mating individuals (workers and soldiers). Behavioral observations include posture tracking of laboratory recordings of behavioral interactions. This repository includes the Python/R scripts.
 
@@ -11,12 +12,26 @@ This study investigates the broadness of tandem running behavior in a termite _R
 This repository includes R and Python code for data analysis. Data is available at Zenodo: 10.5281/zenodo.20820371.
 
 * [README](./README.md)
-* [code](./code)
-  * [`data_processing_well.py`](./code/data_processing_well.py), [`data_processing_dish.py`](./code/data_processing_dish.py) - Format `.h5` files (well experiments) to `.feather` with interpolation and smoothing, for well and dish experiments, respectively.
-  * [`helper_function.py`](./code/helper_function.py) - functions used for above data_processig
-  * [`processing.R`](./code/processing.R) - Format trajectories for visualization and statistical analysis
-  * [`output.R`](./code/output.R) - Visualization and statistics for experiments
-  * [`source.R`](./code/source.R) - for loading packages and functions
+* [codes](./codes)
+  * [`data_processing_well.py`](./codes/data_processing_well.py), [`data_processing_dish.py`](./codes/data_processing_dish.py) - Format `.h5` files (well experiments) to `.feather` with interpolation and smoothing, for well and dish experiments, respectively.
+  * [`helper_function.py`](./codes/helper_function.py) - functions used for above data_processig
+  * [`processing.R`](./codes/processing.R) - Format trajectories for visualization and statistical analysis
+  * [`output.R`](./codes/output.R) - Visualization and statistics for experiments
+  * [`source.R`](./codes/source.R) - for loading packages and functions
+
+## Reproducing the analyses
+
+Data are available from [Zenodo](https://doi.org/10.5281/zenodo.20820371).
+Download the data and place `data_raw/` in the repository root.
+
+From the repository root, run:
+
+```
+python -m codes.data_processing_well
+python -m codes.data_processing_dish
+Rscript codes/processing.R
+Rscript codes/output.R
+```
 
 ## Setup & Dependencies
 Scripts are written in R and Python, tested on Windows 11 (64-bit).
