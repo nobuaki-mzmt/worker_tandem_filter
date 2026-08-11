@@ -231,9 +231,7 @@ if(F){
                    family = binomial, data = df_tandem)
       
       Anova_table(fit_glmm_long_prop)
-      test(pairwise_res$emtrends)|> round3()
       
-
       # longest tandem start later in MM (in sec)
       fit_coxme_longest_latency <- coxme(Surv(start_time) ~ treat + (1|colony), data = df_longest_tandem)
       Anova_table(fit_coxme_longest_latency)
@@ -265,7 +263,6 @@ if(F){
       {
         sheets <- list(
           "lt_prop_glmm_anova"  = Anova_table(fit_glmm_long_prop),
-          "lt_prop_glmm_coef"   = test(pairwise_res$emtrends)|> round3(),
           "lt_time_coxme_anova" = Anova_table(fit_coxme_longest_latency),
           "lt_time_coxme_coef"  = get_coef(fit_coxme_longest_latency),
           "lt_time_coxme_zph"   = cox.zph(fit_coxme_longest_latency),
@@ -360,7 +357,7 @@ if(F){
         scale_color_manual(values = treat_colors, labels = treat_labels)+
         scale_fill_manual(values = treat_colors, labels = treat_labels)  +
         scale_x_discrete(labels = treat_labels)+
-        scale_y_continuous(breaks = c(0,50,100))+
+        scale_y_continuous(breaks = c(0,50,100,150))+
         theme_classic(base_size = 9) +
         labs(x = "", y = "The logest tandem running event")+
         theme(aspect.ratio = 1,
@@ -436,19 +433,22 @@ if(F){
       fit_coxme_longest_latency <- coxme(Surv(start_time) ~ treat + (1|colony), 
                                          data = df_longest_tandem)
       Anova_table(fit_coxme_longest_latency)
-      get_coef(fit_coxme_longest_latency)
+      pairwise_res_lt_time_cox <- emmeans(fit_coxme_longest_latency, pairwise ~ treat)
       
       # longest tandem start later in MM (in event number)
       fit_GLMM_longest_event_number <- glmer.nb(tandem_event ~ treat + (1|colony),  
                                                 data = df_longest_tandem)
       Anova_table(fit_GLMM_longest_event_number)
+      pairwise_res_lt_GLMM <- emmeans(fit_GLMM_longest_event_number, pairwise ~ treat)
+      
       get_coef(fit_GLMM_longest_event_number)
       
       # longest tandem duration comparison
       fit_coxme_longest_duration <- coxme(Surv(duration, cens) ~ treat + (1|colony), 
                                           data = df_longest_tandem)
       Anova_table(fit_coxme_longest_duration)
-      get_coef(fit_coxme_longest_duration)
+      pairwise_res_lt_cox <- emmeans(fit_coxme_longest_duration, pairwise ~ treat)
+      
       
       # save
       {
@@ -461,12 +461,12 @@ if(F){
           "long_dur_coxme_pairwise" = as.data.frame(contrast(EMM, "pairwise"))|> round3(),
           "long_dur_coxme_zph"      = as.data.frame(cox.zph(fit_coxme_long_duration)$table),
           "lt_time_coxme_anova"     = Anova_table(fit_coxme_longest_latency),
-          "lt_time_coxme_coef"      = get_coef(fit_coxme_longest_latency),
+          "lt_time_coxme_pairwise"      = as.data.frame(pairwise_res_lt_time_cox$contrasts) |> round3(),
           "lt_time_coxme_zph"       = as.data.frame(cox.zph(fit_coxme_longest_latency)$table),
           "lt_event_glmm_anova"     = Anova_table(fit_GLMM_longest_event_number),
-          "lt_event_glmm_coef"      = get_coef(fit_GLMM_longest_event_number),
+          "lt_event_glmm_pairwise"      = as.data.frame(pairwise_res_lt_GLMM$contrasts) |> round3(),
           "lt_dur_coxme_anova"      = Anova_table(fit_coxme_longest_duration),
-          "lt_dur_coxme_coef"       = get_coef(fit_coxme_longest_duration),
+          "lt_dur_coxme_pairwise"   = as.data.frame(pairwise_res_lt_cox$contrasts) |> round3(),
           "lt_dur_coxme_zph"        = as.data.frame(cox.zph(fit_coxme_longest_duration)$table)
         )
         
@@ -579,7 +579,7 @@ if(F){
         scale_color_manual(values = treat_colors, labels = treat_labels)+
         scale_fill_manual(values = treat_colors, labels = treat_labels)  +
         scale_x_discrete(labels = treat_labels)+
-        scale_y_continuous(breaks = c(0,50,100))+
+        scale_y_continuous(breaks = c(0,50,100,150))+
         theme_classic(base_size = 9) +
         labs(x = "", y = "The longest tandem running event")+
         theme(aspect.ratio = 1,
